@@ -343,72 +343,217 @@ ESC.final = (opts) => {
 };
 
 /* ---------- TABLERO: mesa de marfil y oro con 30 casilleros ---------- */
-ESC.tablero = (opts) => {
-  const scene = new T.Scene(); scene.background = new T.Color('#120d09');
-  luces(scene, '#fff4dc', '#3a2a1a', 0.7, 0.55);
-  const L = new T.PointLight('#ffd890', 0.6, 40); L.position.set(0, 12, 0); scene.add(L);
-  caja(30, 1, 22, mat({ map: TX.madera('#5a3a20', 8, 6) }), 0, -0.6, 0, scene);              // mesa
-  caja(22.4, 0.3, 15.6, matC('#f3ead6'), 0, 0.05, 0, scene);                                   // tablero de marfil
-  const meandro = tex('meandro', 32, 8, (g) => { g.fillStyle = '#f3ead6'; g.fillRect(0, 0, 32, 8); g.fillStyle = '#c9a23e'; g.fillRect(0, 0, 32, 1); g.fillRect(0, 7, 32, 1); for (let x = 0; x < 32; x += 8) { g.fillRect(x + 1, 2, 5, 1); g.fillRect(x + 5, 2, 1, 4); g.fillRect(x + 3, 5, 3, 1); g.fillRect(x + 3, 4, 1, 1); g.fillRect(x + 1, 2, 1, 4); } }, 20, 1);
-  for (const [w, d, x, z, ry] of [[22.4, 0.5, 0, -7.55, 0], [22.4, 0.5, 0, 7.55, 0], [15.6, 0.5, -10.95, 0, Math.PI / 2], [15.6, 0.5, 10.95, 0, Math.PI / 2]]) {
-    const b = caja(w, 0.34, d, [matC('#d9b444'), matC('#d9b444'), mat({ map: meandro }), matC('#d9b444'), matC('#d9b444'), matC('#d9b444')], x, 0.07, z, scene); b.rotation.y = ry;
-  }
-  // contorno negro de todo el tablero: un borde oscuro por fuera + líneas en las aristas
-  caja(23.3, 0.34, 16.5, matC('#0a0705'), 0, 0.04, 0, scene);
-  const linea = (obj) => { const l = new T.LineSegments(new T.EdgesGeometry(obj.geometry), new T.LineBasicMaterial({ color: '#000000' })); obj.add(l); return l; };
-  { const marco = new T.Mesh(new T.BoxGeometry(23.3, 0.36, 16.5)); marco.position.set(0, 0.05, 0); linea(marco); scene.add(marco); marco.material.visible = false; }
-  // casilleros: 10 arriba (→), 5 a la derecha (↓), 10 abajo (←), 5 a la izquierda (↑)
-  const paso = 2.05, x0 = -4.5 * paso, z0 = -3 * paso;
-  const pos = [];
-  for (let i = 0; i < 10; i++) pos.push([x0 + i * paso, z0]);
-  for (let i = 1; i <= 5; i++) pos.push([x0 + 9 * paso, z0 + i * paso]);
-  for (let i = 0; i < 10; i++) pos.push([x0 + (9 - i) * paso, z0 + 6 * paso]);
-  for (let i = 5; i >= 1; i--) pos.push([x0, z0 + i * paso]);
-  const ICON = { subasta: '⚖️', evento: '📜', preparacion: '⚒️', pelea: '⚔️', recuperacion: '🩹', campeones: '👑' };
-  const celdas = pos.map(([x, z], i) => {
-    const f = opts.fases[i % opts.fases.length];
-    const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d');
-    g.fillStyle = '#fbf4e2'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#c9a23e'; g.fillRect(0, 0, 64, 3); g.fillRect(0, 61, 64, 3); g.fillRect(0, 0, 3, 64); g.fillRect(61, 0, 3, 64);
-    g.fillStyle = '#e8d9b0'; g.fillRect(5, 5, 54, 1); g.fillRect(5, 58, 54, 1);
-    g.font = '24px serif'; g.textAlign = 'center'; g.fillText(ICON[f], 32, 34);
-    g.fillStyle = '#6b5420'; g.font = "bold 11px 'Almendra SC', Georgia, serif"; g.fillText(String(i + 1), 32, 52);
-    const t = new T.CanvasTexture(c); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter;
-    const top = mat({ map: t, emissive: new T.Color('#000000') }), side = matC('#d8c48c');
-    const m = caja(1.85, 0.22, 1.85, [side, side, top, side, side, side], x, 0.3, z, scene);
-    linea(m);
-    // sombra negra debajo: contorno grueso alrededor de cada casillero
-    caja(2.0, 0.2, 2.0, matC('#0a0705'), x, 0.12, z, scene);
-    return { m, top, y: 0.3, hundir: 0 };
+/* ---------- EL TEATRO (multijugador): 6 actos de 5 escenas; el telón se cierra, cambia la escenografía y los emperadores salen a actuar ---------- */
+const ROMANO = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+// telones pintados del fondo (uno por escena), en lienzos pixelados
+function telonFondo(f) {
+  return tex('fondo_' + f, 288, 112, (g, W, H) => {
+    const grad = (a, b, y0 = 0, y1 = H) => { const gr = g.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(0, y0, W, y1 - y0); };
+    let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    if (f === 'subasta') {   // la calle del mercado a pleno sol, con el coliseo al fondo
+      grad('#7fb0d8', '#e8d6a8', 0, 70);
+      g.fillStyle = '#c9b08a'; g.beginPath(); g.ellipse(214, 66, 54, 26, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#9c8566'; for (let x = 166; x < 264; x += 9) g.fillRect(x, 50, 5, 9);
+      for (let i = 0; i < 9; i++) { const x = i * 34 - 6, h = 30 + r() * 26, c = ['#d9a066', '#c8784a', '#e0c08a', '#b86a48'][i % 4]; g.fillStyle = c; g.fillRect(x, 112 - h - 20, 32, h + 20); g.fillStyle = '#7a2e1c'; g.fillRect(x - 2, 112 - h - 24, 36, 5); g.fillStyle = '#3a2618'; g.fillRect(x + 6, 112 - h - 8, 7, 10); g.fillRect(x + 19, 112 - h - 8, 7, 10);
+        const t1 = ['#c33', '#2a6ab0', '#d9b444', '#3a8a4a'][i % 4]; for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#f3ead6' : t1; g.fillRect(x + k * 4, 112 - h + 6, 4, 6); } g.fillStyle = '#2a1a10'; g.fillRect(x + 11, 92, 10, 20); }
+      grad('#b89a6a', '#8a7048', 104, 112);
+    } else if (f === 'evento') {   // de noche: luna, estrellas y el camino entre lomas
+      grad('#0e1430', '#3a3458', 0, 112);
+      g.fillStyle = '#fff'; for (let i = 0; i < 70; i++) g.fillRect(r() * W, r() * 70, 1, 1);
+      g.fillStyle = '#f2ecd0'; g.beginPath(); g.arc(70, 30, 13, 0, 7); g.fill(); g.fillStyle = '#d8d0b0'; g.fillRect(64, 26, 3, 3); g.fillRect(74, 33, 4, 3);
+      g.fillStyle = '#1e2238'; g.beginPath(); g.moveTo(0, 90); for (let x = 0; x <= W; x += 24) g.lineTo(x, 74 + Math.sin(x * 0.03) * 10); g.lineTo(W, 112); g.lineTo(0, 112); g.fill();
+      g.fillStyle = '#141828'; g.beginPath(); g.moveTo(0, 100); for (let x = 0; x <= W; x += 18) g.lineTo(x, 92 + Math.sin(x * 0.05 + 2) * 6); g.lineTo(W, 112); g.lineTo(0, 112); g.fill();
+      g.fillStyle = '#5a5070'; g.beginPath(); g.moveTo(130, 112); g.lineTo(158, 112); g.lineTo(147, 88); g.lineTo(143, 88); g.fill();
+      g.fillStyle = '#ffd890'; g.fillRect(226, 84, 3, 3); g.fillRect(232, 85, 2, 2);
+    } else if (f === 'preparacion') {   // adentro del establo: tablones, ventanas con sol y herramientas colgadas
+      for (let x = 0; x < W; x += 12) { g.fillStyle = r() < 0.5 ? '#6a4628' : '#5a3a20'; g.fillRect(x, 0, 12, H); g.fillStyle = '#3a2412'; g.fillRect(x + 11, 0, 1, H); }
+      g.fillStyle = '#3a2412'; g.fillRect(0, 18, W, 6); g.fillRect(0, 90, W, 4);
+      for (const x of [40, 200]) { g.fillStyle = '#ffe2a0'; g.fillRect(x, 32, 34, 28); g.fillStyle = '#3a2412'; g.fillRect(x + 16, 32, 3, 28); g.fillRect(x, 45, 34, 3); }
+      g.fillStyle = '#9aa0a8'; for (const [x, h] of [[110, 26], [122, 30], [134, 22], [150, 28]]) { g.fillRect(x, 32, 3, h); g.fillStyle = '#5a3a20'; g.fillRect(x - 1, 28, 5, 5); g.fillStyle = '#9aa0a8'; }
+      g.fillStyle = '#c8a858'; g.fillRect(0, 96, W, 16); g.fillStyle = '#a88a40'; for (let i = 0; i < 60; i++) g.fillRect(r() * W, 96 + r() * 16, 4, 1);
+    } else if (f === 'pelea') {   // las gradas del coliseo, llenas
+      grad('#8ab8e0', '#d8c8a0', 0, 30);
+      g.fillStyle = '#c9b08a'; g.fillRect(0, 22, W, 90);
+      const cols = ['#7a3a2c', '#a89f8c', '#4a5f7a', '#8a7440', '#6a4a6e', '#4f6a44'];
+      for (let y = 30; y < 84; y += 7) for (let x = (y % 14 ? 0 : 2); x < W; x += 4) { if (r() < 0.15) continue; g.fillStyle = cols[(r() * cols.length) | 0]; g.fillRect(x, y + 2, 3, 3); g.fillStyle = '#b58a68'; g.fillRect(x + 1, y, 2, 2); }
+      g.fillStyle = '#9c8566'; g.fillRect(0, 84, W, 4); g.fillRect(0, 26, W, 3);
+      for (let x = 6; x < W; x += 26) { g.fillStyle = '#6a5640'; g.fillRect(x, 90, 14, 22); g.beginPath(); g.arc(x + 7, 90, 7, Math.PI, 0); g.fill(); }
+      for (const [x, c] of [[40, '#a32020'], [140, '#c8a640'], [240, '#a32020']]) { g.fillStyle = c; g.fillRect(x, 4, 12, 18); g.fillStyle = '#5a3a20'; g.fillRect(x + 5, 0, 2, 26); }
+    } else if (f === 'recuperacion') {   // la enfermería: piedra, ventana en arco y estantes con frascos
+      for (let y = 0; y < H; y += 8) for (let x = (y / 8) % 2 ? -8 : 0; x < W; x += 16) { g.fillStyle = r() < 0.5 ? '#8a8070' : '#7a7062'; g.fillRect(x, y, 15, 7); }
+      g.fillStyle = '#5a5244'; g.fillRect(0, 0, W, 1);
+      g.fillStyle = '#2a2a3a'; g.fillRect(124, 24, 40, 44); g.beginPath(); g.arc(144, 24, 20, Math.PI, 0); g.fill(); g.fillStyle = '#9ab8d8'; g.fillRect(128, 28, 32, 40); g.beginPath(); g.arc(144, 28, 16, Math.PI, 0); g.fill(); g.fillStyle = '#2a2a3a'; g.fillRect(143, 12, 2, 56);
+      for (const x of [20, 210]) { g.fillStyle = '#5a3a20'; g.fillRect(x, 40, 56, 3); g.fillRect(x, 62, 56, 3); for (let k = 0; k < 6; k++) { g.fillStyle = ['#3a8a4a', '#a32020', '#d9b444', '#4a5f7a'][(k + x) % 4]; g.fillRect(x + 4 + k * 9, 31, 5, 9); g.fillRect(x + 6 + k * 8, 54, 4, 8); } }
+      g.fillStyle = '#6a6052'; g.fillRect(0, 100, W, 12);
+    } else {   // campeones: la torre de noche, con estandartes
+      grad('#1a1030', '#4a2a50', 0, 112);
+      g.fillStyle = '#fff'; for (let i = 0; i < 50; i++) g.fillRect(r() * W, r() * 60, 1, 1);
+      g.fillStyle = '#2a2236'; g.fillRect(118, 10, 52, 102); for (let x = 116; x < 172; x += 10) g.fillRect(x, 4, 6, 8);
+      g.fillStyle = '#ffd890'; for (const [x, y] of [[132, 30], [150, 30], [140, 56], [132, 80], [152, 80]]) g.fillRect(x, y, 5, 8);
+      for (const x of [90, 186]) { g.fillStyle = '#a32020'; g.fillRect(x, 24, 14, 40); g.fillStyle = '#d9b444'; g.fillRect(x + 4, 36, 6, 6); }
+      g.fillStyle = '#140c20'; g.fillRect(0, 100, W, 12);
+    }
   });
-  const tokens = opts.colores.map((col, i) => { const s = spriteEmp(col, 1.6, undefined, opts.looks && opts.looks[i]); scene.add(s); return { s, from: null, to: null, t0: 0 }; });
-  const camera = new T.PerspectiveCamera(42, 16 / 9, 0.1, 80); camera.position.set(0, 19, 11.5); camera.lookAt(0, 0, 0.8);
-  let cur = 1, hop = null, pisado = 1;   // pisado: casillero donde ya aterrizaron (se hunde y se ilumina)
-  const brillo = new T.PointLight('#ffcc55', 0, 6); scene.add(brillo);
-  const lugar = (cas, i) => { const [x, z] = pos[cas - 1]; return [x - 0.55 + (i % 3) * 0.55, z - 0.1 + Math.floor(i / 3) * 0.6]; };
+}
+// la utilería de cada escena (cajas pegadas en una sola malla por material)
+function utileria(f, par, vivos) {
+  const g = new T.Group(), Y = 1.0;
+  const pal = (c) => matK(c), mad = (c = '#7b5530') => pal(c);
+  if (f === 'subasta') {
+    caja(2.2, 0.5, 1.3, mad('#6a4628'), -3.4, Y + 0.25, -0.9, g); caja(2.3, 0.06, 1.4, mad('#9a6a3c'), -3.4, Y + 0.53, -0.9, g);
+    caja(0.7, 1.05, 0.45, mad('#5a3a20'), -3.4, Y + 1.08, -1.1, g); caja(0.85, 0.08, 0.6, mad('#3a2412'), -3.4, Y + 1.63, -1.08, g);
+    caja(0.32, 0.1, 0.1, mad('#3a2412'), -3.25, Y + 1.72, -1.0, g);   // el martillo
+    caja(2.4, 0.9, 1.3, mad('#7b5530'), 3.3, Y + 0.95, -1.2, g); for (const x of [2.3, 4.3]) for (const z of [-1.9, -0.5]) { const w = cil(0.45, 0.45, 0.12, 12, mad('#4a2c18'), x, Y + 0.45, z, g); w.rotation.x = Math.PI / 2; }
+    for (let i = 0; i < 7; i++) caja(0.06, 1.0, 0.06, pal('#3a3a3a'), 2.2 + i * 0.36, Y + 1.9, -0.6, g); caja(2.4, 0.08, 1.3, pal('#3a3a3a'), 3.3, Y + 2.4, -1.2, g);
+    caja(0.6, 0.6, 0.6, mad('#9a6a3c'), 1.6, Y + 0.3, -1.9, g); caja(0.45, 0.45, 0.45, mad('#8a5a30'), 1.75, Y + 0.82, -1.85, g);
+    for (let i = 0; i < 9; i++) cil(0.09, 0.09, 0.03, 8, pal('#d4a017'), -2.6 + (i % 3) * 0.2, Y + 0.6 + Math.floor(i / 3) * 0.035, -0.45, g);
+  } else if (f === 'evento') {
+    caja(0.12, 1.4, 0.12, mad('#5a3a20'), 0, Y + 0.7, -1.4, g); const at = caja(1.1, 0.06, 0.7, mad('#6a4628'), 0, Y + 1.45, -1.35, g); at.rotation.x = -0.5;
+    const hoja = caja(0.9, 0.02, 0.62, pal('#e8dcb8'), 0, Y + 1.49, -1.33, g); hoja.rotation.x = -0.5;
+    for (const z of [-1.62, -1.05]) { const rr = cil(0.06, 0.06, 1.0, 8, pal('#d8c890'), 0, Y + 1.5 + (z < -1.3 ? 0.14 : -0.14), z, g); rr.rotation.z = Math.PI / 2; }
+    caja(1.0, 0.55, 0.6, mad('#6a4628'), 2.8, Y + 0.28, -1.6, g); caja(1.04, 0.12, 0.64, pal('#c8a640'), 2.8, Y + 0.6, -1.6, g); for (let i = 0; i < 6; i++) cil(0.08, 0.08, 0.04, 8, pal('#d4a017'), 2.5 + i * 0.12, Y + 0.68, -1.5, g);
+    caja(1.5, 0.5, 0.9, pal('#5a5a64'), -3.0, Y + 0.25, -1.7, g); caja(0.9, 0.4, 0.7, pal('#4a4a54'), -2.6, Y + 0.7, -1.8, g);
+  } else if (f === 'preparacion') {
+    caja(2.4, 0.1, 0.3, mad(), -3.0, Y + 1.6, -2.2, g); caja(2.4, 0.1, 0.3, mad(), -3.0, Y + 0.4, -2.2, g); for (const x of [-4.1, -1.9]) caja(0.12, 1.8, 0.3, mad(), x, Y + 0.9, -2.2, g);
+    for (let i = 0; i < 6; i++) { const e = caja(0.07, 1.4, 0.03, pal('#9aa0a8'), -3.8 + i * 0.32, Y + 0.95, -2.05, g); e.rotation.z = 0.08; caja(0.24, 0.05, 0.06, pal('#5a3a20'), -3.8 + i * 0.32 + 0.05, Y + 1.5, -2.05, g); }
+    caja(0.7, 0.5, 0.7, mad('#5a3a20'), 0.2, Y + 0.25, -1.6, g); caja(0.8, 0.28, 0.38, pal('#3a3a40'), 0.2, Y + 0.64, -1.6, g); caja(0.3, 0.12, 0.3, pal('#3a3a40'), 0.66, Y + 0.72, -1.6, g);
+    for (const [x, y, z] of [[2.6, 0.3, -1.9], [3.6, 0.3, -1.7], [3.1, 0.88, -1.8]]) caja(1.0, 0.58, 0.62, mat({ map: TX.paja() }), x, Y + y, z, g);
+    caja(0.12, 1.8, 0.12, mad(), 4.6, Y + 0.9, -0.6, g); caja(1.1, 0.1, 0.1, mad(), 4.6, Y + 1.4, -0.6, g); caja(0.5, 0.7, 0.4, mat({ map: TX.paja() }), 4.6, Y + 1.55, -0.6, g);
+  } else if (f === 'pelea') {
+    caja(10, 0.03, 4.4, mat({ map: TX.arena(4, 2) }), 0, Y + 0.015, -0.4, g);
+    for (const x of [-4.8, 4.8]) { cil(0.42, 0.42, 4.4, 10, mat({ map: TX.marmol(1, 3) }), x, Y + 2.2, -1.9, g); caja(1.1, 0.25, 1.1, pal('#d8d0c0'), x, Y + 0.12, -1.9, g); caja(1.1, 0.25, 1.1, pal('#d8d0c0'), x, Y + 4.4, -1.9, g); }
+    for (const [x, c] of [[-3.4, '#a32020'], [3.4, '#2a5ab0']]) { const e = cil(0.55, 0.55, 0.08, 14, pal(c), x, Y + 0.75, -1.4, g); e.rotation.x = Math.PI / 2 - 0.25; cil(0.15, 0.15, 0.1, 8, pal('#c8a640'), x, Y + 0.76, -1.36, g).rotation.x = Math.PI / 2 - 0.25; caja(0.08, 0.7, 0.08, mad(), x, Y + 0.35, -1.6, g); }
+    for (const s of [-1, 1]) { const e = caja(0.08, 1.6, 0.03, pal('#b8c0c8'), s * 0.3, Y + 2.0, -2.6, g); e.rotation.z = s * 0.6; caja(0.4, 0.08, 0.06, pal('#c8a640'), s * 0.62, Y + 1.45, -2.58, g).rotation.z = s * 0.6; }
+  } else if (f === 'recuperacion') {
+    for (const x of [-3.2, 3.2]) { caja(2.1, 0.5, 0.95, mad('#6a4628'), x, Y + 0.25, -1.5, g); caja(2.0, 0.16, 0.9, pal('#e8e2d0'), x, Y + 0.58, -1.5, g); caja(0.45, 0.12, 0.7, pal('#f6f2e6'), x - 0.75, Y + 0.72, -1.5, g); caja(1.2, 0.04, 0.92, pal('#9a3a2c'), x + 0.3, Y + 0.68, -1.5, g); }
+    caja(1.0, 0.75, 0.6, mad('#5a3a20'), 0, Y + 0.38, -2.0, g); for (let i = 0; i < 3; i++) { const v = cil(0.09, 0.09, 0.22, 8, pal('#f6f2e6'), -0.3 + i * 0.22, Y + 0.84, -2.0, g); v.rotation.z = Math.PI / 2; }
+    for (const [x, c] of [[0.25, '#3a8a4a'], [0.4, '#a32020']]) cil(0.06, 0.08, 0.26, 8, pal(c), x, Y + 0.88, -1.9, g);
+    cil(0.22, 0.18, 0.3, 10, pal('#8a8a90'), -1.2, Y + 0.15, -1.2, g);
+  } else {   // campeones
+    caja(1.6, 0.4, 1.2, pal('#c8a640'), 0, Y + 0.2, -2.0, g); caja(1.3, 0.6, 1.0, pal('#8e1b1b'), 0, Y + 0.7, -2.0, g); caja(1.3, 1.6, 0.25, pal('#8e1b1b'), 0, Y + 1.6, -2.45, g); caja(1.5, 0.18, 0.3, pal('#c8a640'), 0, Y + 2.45, -2.45, g);
+    caja(0.5, 0.9, 0.5, pal('#d8d0c0'), 2.2, Y + 0.45, -1.0, g); caja(0.56, 0.1, 0.56, pal('#8e1b1b'), 2.2, Y + 0.95, -1.0, g); cil(0.18, 0.2, 0.16, 10, pal('#d4a017'), 2.2, Y + 1.08, -1.0, g);
+    for (const x of [-4.2, 4.2]) { caja(0.1, 3.4, 0.1, mad('#3a2412'), x, Y + 1.7, -2.4, g); caja(0.9, 1.6, 0.04, pal('#a32020'), x, Y + 2.5, -2.36, g); }
+  }
+  const dest = new T.Group(); fundirEstatico(g, dest); par.add(dest);
+  // llamas que se mueven (no se funden): velas del evento, antorchas de la torre
+  if (f === 'evento') for (const x of [-1.3, 1.3]) { caja(0.08, 1.3, 0.08, pal('#c8a640'), x, Y + 0.65, -1.2, dest); vivos.push(antorcha(dest, x, Y + 1.35, -1.2, 0)); }
+  if (f === 'campeones') for (const x of [-2.4, 2.4]) { caja(0.1, 1.1, 0.1, mad('#3a2412'), x, Y + 0.55, -1.5, dest); vivos.push(antorcha(dest, x, Y + 1.2, -1.5, 0)); }
+  if (f === 'recuperacion') { caja(0.05, 0.6, 0.05, pal('#d8d0c0'), 1.4, Y + 0.3, -2.1, dest); vivos.push(antorcha(dest, 1.4, Y + 0.6, -2.1, 0)); }
+  return dest;
+}
+ESC.tablero = (opts) => {
+  const scene = new T.Scene(); scene.background = new T.Color('#0b0806');
+  scene.add(new T.HemisphereLight('#ffe2b8', '#1a120c', 0.42));
+  const foco = new T.SpotLight('#fff0d0', 1.25, 30, 0.62, 0.65, 1); foco.position.set(0, 11, 9); foco.target.position.set(0, 1, -0.6); scene.add(foco, foco.target);
+  const candilejas = new T.PointLight('#ffb860', 0.7, 9, 1.4); candilejas.position.set(0, 1.4, 3.1); scene.add(candilejas);
+  const Y = 1.0, est = new T.Group();
+  // la sala: piso, paredes oscuras, el escenario de tablones
+  caja(44, 0.2, 34, matK('#120c08'), 0, -0.1, 6, est);
+  caja(44, 14, 0.4, matK('#1a0f0a'), 0, 7, -3.4, est);
+  caja(15.4, Y, 6.6, mat({ map: TX.madera('#3a2212', 8, 1) }), 0, Y / 2, -0.1, est);
+  caja(15.4, 0.06, 6.6, mat({ map: TX.madera('#8a5a30', 10, 4) }), 0, Y + 0.03, -0.1, est);
+  caja(15.6, 0.1, 0.14, matK('#c8a640'), 0, Y + 0.02, 3.24, est);
+  // el arco del proscenio: columnas rojas con molduras doradas, la viga y el emblema de las máscaras
+  for (const s of [-1, 1]) {
+    caja(1.3, 7.8, 0.9, matK('#6a1616'), s * 7.75, 3.9, 2.5, est);
+    for (const dx of [-0.58, 0.58]) caja(0.1, 7.8, 0.94, matK('#c8a640'), s * 7.75 + dx, 3.9, 2.5, est);
+    caja(1.6, 0.3, 1.1, matK('#c8a640'), s * 7.75, 0.15, 2.5, est); caja(1.5, 0.25, 1.0, matK('#c8a640'), s * 7.75, 7.5, 2.5, est);
+    caja(6, 14, 0.4, matK('#2a1410'), s * 11.4, 7, 2.6, est);   // pared a los costados del arco
+  }
+  caja(16.8, 1.4, 0.9, matK('#6a1616'), 0, 7.35, 2.5, est); caja(16.8, 0.12, 0.96, matK('#c8a640'), 0, 6.65, 2.5, est); caja(16.8, 0.12, 0.96, matK('#c8a640'), 0, 8.05, 2.5, est);
+  const masc = tex('mascaras', 48, 24, (g) => { g.fillStyle = '#c8a640'; g.beginPath(); g.ellipse(24, 12, 23, 11, 0, 0, 7); g.fill(); g.fillStyle = '#8a6a20'; g.beginPath(); g.ellipse(24, 12, 20, 9, 0, 0, 7); g.fill();
+    for (const [x, c, ale] of [[17, '#f3ead6', 1], [31, '#e0d6c0', -1]]) { g.fillStyle = c; g.beginPath(); g.ellipse(x, 12, 6, 7.5, 0, 0, 7); g.fill(); g.fillStyle = '#2a1a10'; g.fillRect(x - 4, 9 + (ale < 0 ? 1 : 0), 3, 2); g.fillRect(x + 1, 9 + (ale < 0 ? 1 : 0), 3, 2); g.beginPath(); g.arc(x, ale > 0 ? 14 : 18, 3, ale > 0 ? 0 : Math.PI, ale > 0 ? Math.PI : 0); g.fill(); } });
+  plano(2.6, 1.3, new T.MeshBasicMaterial({ map: masc, transparent: true, alphaTest: 0.5 }), 0, 7.95, 2.97, 0, scene);
+  // la sala de butacas: las cabezas del público a contraluz
+  { let s = 3; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    for (let fila = 0; fila < 5; fila++) for (let i = 0; i < 26; i++) {
+      if (r() < 0.12) continue; const x = -13 + i * 1.04 + (fila % 2) * 0.5 + (r() - 0.5) * 0.2, z = 4.4 + fila * 1.2, y = 0.0 + fila * 0.26, c = r() < 0.5 ? '#1c130d' : '#241810';
+      caja(0.5, 0.3, 0.3, matK(c), x, y + 0.15, z, est); caja(0.24, 0.27, 0.24, matK(c), x, y + 0.45, z, est);
+    } }
+  fundirEstatico(est, scene);
+  // lamparitas del proscenio: 6 actos × 5 escenas (las que ya pasaron, prendidas; la que toca, titila)
+  const lamp = [];   // son los flecos dorados del lambrequín: 6 grupos de 5
+  for (let a = 0; a < 6; a++) for (let e = 0; e < 5; e++) { const m = new T.MeshBasicMaterial({ color: '#5a4418' }); const b = caja(0.26, 0.3, 0.06, m, -6.6 + a * 2.5 + e * 0.42, 5.62, 2.47, scene); lamp.push({ b, m }); }
+  // el fondo pintado y las patas negras de los costados (por ahí entran y salen los actores)
+  const fondoM = new T.MeshBasicMaterial({ color: '#d8d0c4' });
+  plano(14.6, 5.9, fondoM, 0, Y + 2.95, -2.95, 0, scene);
+  for (const s of [-1, 1]) for (const z of [-1.6, 0.5]) caja(1.4, 5.8, 0.12, matK('#140c08'), s * 6.7, Y + 2.9, z, scene);
+  // el telón: dos mitades de pliegues que se juntan en el medio; arriba, el lambrequín con flecos
+  const tel = [-1, 1].map((s) => { const g = new T.Group(); g.position.set(s * 7.3, Y, 2.15); scene.add(g);
+    for (let i = 0; i < 10; i++) caja(0.76, 5.6, 0.22 + (i % 2) * 0.1, matK(i % 2 ? '#7a1414' : '#9a1c1c'), -s * (0.37 + i * 0.73), 2.8, (i % 2) * 0.06, g);
+    caja(0.2, 0.25, 0.4, matK('#c8a640'), -s * 0.4, 2.2, 0.15, g);   // el cordón que lo ata
+    return g; });
+  caja(15.0, 1.0, 0.3, mat({ map: TX.tela('#8e1b1b', 12, 1) }), 0, 6.25, 2.3, scene);
+  // candilejas: una fila de velitas al borde del escenario
+  const velas = []; for (let i = 0; i < 9; i++) velas.push(antorcha(scene, -6 + i * 1.5, Y - 0.12, 3.12, 0));
+  // el cartel del acto: baja colgado de dos cadenas
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96; const cartelT = new T.CanvasTexture(cv); cartelT.minFilter = T.LinearFilter;
+  const cartel = new T.Group(); scene.add(cartel); plano(3.4, 1.27, new T.MeshBasicMaterial({ map: cartelT, transparent: true, alphaTest: 0.1 }), 0, 0, 0, 0, cartel);
+  for (const x of [-1.2, 1.2]) caja(0.04, 4, 0.04, matK('#3a3a3a'), x, 2.6, -0.02, cartel);
+  const pintarCartel = (cas) => {
+    const g = cv.getContext('2d'), a = Math.ceil(cas / 5), e = ((cas - 1) % 5) + 1, f = opts.fases[cas - 1];
+    g.clearRect(0, 0, 256, 96); g.fillStyle = '#c8a640'; g.fillRect(4, 4, 248, 88); g.fillStyle = '#4a2c18'; g.fillRect(9, 9, 238, 78); g.fillStyle = '#5e3a20'; for (let y = 12; y < 84; y += 9) g.fillRect(12, y, 232, 4);
+    g.textAlign = 'center'; g.fillStyle = '#f3d98a'; g.font = '900 30px "Cinzel Decorative", Georgia, serif'; g.fillText(`Acto ${ROMANO[a - 1]}`, 128, 44);
+    g.fillStyle = '#f3ead6'; g.font = '700 20px Almendra, Georgia, serif'; g.fillText(`Escena ${e} · ${R_FASE(f)}`, 128, 74);
+    cartelT.needsUpdate = true;
+  };
+  const R_FASE = (f) => (root.REGLAS && root.REGLAS.FASE_LABEL[f]) || f;
+  // utilería de cada escena: se arma una sola vez
+  const vivos = [], decor = {};
+  for (const f of new Set(opts.fases)) { decor[f] = utileria(f, scene, vivos); decor[f].visible = false; }
+  // los actores: los emperadores
+  const n = opts.colores.length;
+  const actores = opts.colores.map((col, i) => { const s = spriteEmp(col, 1.7, undefined, opts.looks && opts.looks[i]); if (s.voxel) s.voxel.modo = 'paseo'; scene.add(s); return { s, x: 0, z: 0, mx: 0, mz: 0, ry: 0, esp: 0 }; });
+  // dónde se para cada uno según la escena
+  const marcas = (f) => {
+    const L = [];
+    if (f === 'pelea') { for (let i = 0; i < n; i++) { const lado = i % 2 ? 1 : -1, k = Math.floor(i / 2); L.push([lado * (1.1 + k * 1.15), 0.5 - k * 0.55, lado > 0 ? -0.9 : 0.9]); } }
+    else if (f === 'subasta') { for (let i = 0; i < n; i++) L.push([-1.4 + i * 1.15 - (n - 1) * 0.15, 0.7 - Math.abs(i - (n - 1) / 2) * 0.18, -0.25]); }
+    else if (f === 'evento') { for (let i = 0; i < n; i++) { const a = Math.PI * (0.15 + 0.7 * (n > 1 ? i / (n - 1) : 0.5)); L.push([-Math.cos(a) * 2.6, -0.9 + Math.sin(a) * 1.5, 0]); } }
+    else if (f === 'recuperacion') { for (let i = 0; i < n; i++) L.push([(i - (n - 1) / 2) * 1.2, 0.5 + (i % 2) * 0.35, 0]); }
+    else if (f === 'campeones') { for (let i = 0; i < n; i++) L.push([(i - (n - 1) / 2) * 1.35, 0.6, 0]); }
+    else { for (let i = 0; i < n; i++) L.push([(i - (n - 1) / 2) * 1.25, 0.55 - (i % 2) * 0.4, 0]); }
+    return L;
+  };
+  let telon = 1, telonMeta = 1, pendiente = null, faseAct = null, cur = 0, cartelY = 9, cartelMeta = 9, habla = 0, hablaT = 0;
+  const aplicar = (cas, entrar) => {
+    const f = opts.fases[cas - 1]; faseAct = f; cur = cas;
+    for (const k in decor) decor[k].visible = k === f;
+    fondoM.map = telonFondo(f); fondoM.needsUpdate = true;
+    lamp.forEach((l, i) => l.m.color.set(i + 1 < cas ? '#f0c040' : '#5a4418'));
+    pintarCartel(cas);
+    marcas(f).forEach(([x, z, ry], i) => { const A = actores[i]; A.mx = x; A.mz = z; A.ry = ry;
+      if (entrar) { A.x = (x < 0 ? -6.9 : 6.9); A.z = z; A.esp = 0.1 + i * 0.14; } else { A.x = x; A.z = z; A.esp = 0; }
+      A.s.rotation.y = entrar ? 0 : ry; A.s.position.set(A.x, Y, A.z); });
+  };
   const S = {
-    scene, camera,
+    scene, camera: new T.PerspectiveCamera(40, 16 / 9, 0.1, 80),
     setCasillero(cas, animar) {
-      celdas.forEach((c, i) => { c.top.color.set(i + 1 < cas ? '#b8ad94' : '#ffffff'); });
-      if (animar && cur !== cas) { hop = { de: cur, a: cas, t0: null }; pisado = 0; if (window.Sonido) Sonido.salto(); } else { pisado = cas; tokens.forEach((k, i) => { const [x, z] = lugar(cas, i); k.s.position.set(x, 0.42, z); }); }
-      cur = cas;
+      if (animar && faseAct) { pendiente = cas; telonMeta = 0; cartelMeta = 9; if (root.Sonido && root.Sonido.telon) root.Sonido.telon(); }
+      else { aplicar(cas, false); telon = telonMeta = 1; cartelY = cartelMeta = 4.8; }
     },
-    update(t) {
-      celdas.forEach((c, i) => {
-        const on = i + 1 === pisado;
-        c.hundir += ((on ? 1 : 0) - c.hundir) * 0.18;
-        c.m.position.y = c.y - 0.13 * c.hundir;
-        const p = on ? 0.5 + 0.2 * Math.sin(t * 4) : 0;
-        c.top.emissive.setRGB(p * 1.1, p * 0.8, p * 0.15);
+    update(t, dt) {
+      // telón: se cierra rápido, cambia la escenografía detrás y se abre más lento
+      telon += Math.sign(telonMeta - telon) * Math.min(Math.abs(telonMeta - telon), dt * (telonMeta < telon ? 1.9 : 1.15));
+      if (pendiente !== null && telon <= 0.001) { aplicar(pendiente, true); pendiente = null; telonMeta = 1; cartelMeta = 4.8; if (root.Sonido && root.Sonido.publico) root.Sonido.publico('aplausos', 0.55); }
+      const ab = 0.5 - 0.5 * Math.cos(telon * Math.PI);
+      tel.forEach((g) => { g.scale.x = 1 - 0.82 * ab; });
+      cartelY += (cartelMeta - cartelY) * Math.min(1, dt * 2.6); cartel.position.set(0, cartelY, 0.6); cartel.rotation.z = Math.sin(t * 1.3) * 0.025 * Math.min(1, Math.abs(cartelMeta - cartelY) + 0.4);
+      lamp.forEach((l, i) => { if (i + 1 === cur) l.m.color.setRGB(1, 0.85 + 0.15 * Math.sin(t * 6), 0.45 + 0.3 * Math.sin(t * 6)); });
+      velas.forEach((v) => v(t)); vivos.forEach((v) => v(t));
+      candilejas.intensity = 0.7 + Math.sin(t * 11) * 0.04 + Math.sin(t * 7.3) * 0.04;
+      // los actores entran desde los costados y van a su marca; quietos, actúan su parte
+      hablaT -= dt; if (hablaT <= 0) { habla = (habla + 1 + Math.floor(Math.random() * Math.max(1, n - 1))) % Math.max(1, n); hablaT = 1.6 + Math.random() * 1.6; }
+      actores.forEach((A, i) => {
+        let moviendo = false;
+        if (telon > 0.35) { if (A.esp > 0) A.esp -= dt; else { const dx = A.mx - A.x, dz = A.mz - A.z, d = Math.hypot(dx, dz); if (d > 0.02) { const v = Math.min(d, dt * 2.7); A.x += dx / d * v; A.z += dz / d * v; moviendo = true; } } }
+        A.s.position.set(A.x, Y, A.z);
+        if (!moviendo && A.esp <= 0) A.s.rotation.y += (A.ry - A.s.rotation.y) * Math.min(1, dt * 3);
+        const V = A.s.voxel; if (V) { V.andar = (V.andar || 0) + ((moviendo ? 1 : 0) - (V.andar || 0)) * Math.min(1, dt * 6); V.habla = !moviendo && telon > 0.9 && (faseAct === 'pelea' ? (i === habla || (i ^ 1) === habla) : i === habla); }
       });
-      if (pisado) { const [bx, bz] = pos[pisado - 1]; brillo.position.set(bx, 1.4, bz); brillo.intensity = 1.2 + 0.4 * Math.sin(t * 4); } else brillo.intensity = 0;
-      if (hop) {
-        if (hop.t0 === null) hop.t0 = t;
-        const k = Math.min(1, (t - hop.t0) / 0.7);
-        tokens.forEach((tk, i) => { const [x1, z1] = lugar(hop.de, i), [x2, z2] = lugar(hop.a, i); const kk = Math.min(1, Math.max(0, k * 1.3 - i * 0.06)); tk.s.position.set(x1 + (x2 - x1) * kk, 0.42 + Math.sin(kk * Math.PI) * 1.2, z1 + (z2 - z1) * kk); });
-        if (k >= 1) { pisado = hop.a; hop = null; if (window.Sonido) Sonido.ficha(); }
-      } else { const dy = pisado ? -0.13 * celdas[pisado - 1].hundir : 0; tokens.forEach((tk, i) => { tk.s.position.y = 0.42 + dy + Math.abs(Math.sin(t * 2.2 + i)) * 0.05; }); }
     },
   };
+  S.camera.position.set(0, 3.8, 13.2); S.camera.lookAt(0, 3.0, 0);
   return S;
 };
 

@@ -607,14 +607,14 @@ function escucharComoCliente() {
 
 /* ---------- TABLERO ---------- */
 PANT.tablero = (d) => {
-  const box = pantalla('tablero', `<div class="boardui greek"><div class="center"><div class="panel" id="pp"></div><div class="panel" id="cr"></div></div></div>`, { fases: R.TABLERO, colores: G.emperadores.map((e) => e.color), looks: G.emperadores.map((e) => e.look || null) });
+  const box = pantalla('tablero', `<div class="boardui greek teatroui"><div class="center"><div class="panel" id="pp"></div><div class="panel" id="cr"></div></div></div>`, { fases: R.TABLERO, colores: G.emperadores.map((e) => e.color), looks: G.emperadores.map((e) => e.look || null) });
   const S3 = box.h.S;
   if (d.mover && G.casillero > 1) { S3.setCasillero(G.casillero - 1, false); setTimeout(() => S3.setCasillero(G.casillero, true), 300); }
   else S3.setCasillero(G.casillero, false);
   const pintar = () => {
     const pp = $('#pp', box);
-    pp.innerHTML = `<h2>Ciclo ${P.ciclo(G)} de 6 · Casillero ${G.casillero}</h2>
-      <div class="meta" style="margin-bottom:8px">Próxima fase: <b class="nx">${ICON[P.fase(G)]} ${R.FASE_LABEL[P.fase(G)]}</b>${online() ? ` · sala <b class="nx">${Red.codigo}</b>` : ''}</div>
+    pp.innerHTML = `<h2>Acto ${['I', 'II', 'III', 'IV', 'V', 'VI'][P.ciclo(G) - 1] || P.ciclo(G)} de VI · Escena ${((G.casillero - 1) % 5) + 1}</h2>
+      <div class="meta" style="margin-bottom:8px">Próxima escena: <b class="nx">${ICON[P.fase(G)]} ${R.FASE_LABEL[P.fase(G)]}</b>${online() ? ` · sala <b class="nx">${Red.codigo}</b>` : ''}</div>
       <table><tr><th>Emperador</th><th>Bolsa</th><th>Puntos</th><th>Gladiadores</th></tr>
       ${P.ranking(G).map((e) => `<tr><td><span class="nmT" style="color:${e.color}">${nombreDe(e)}</span>${online() && !e.esJugador ? ' 🤖' : ''}${online() && G.flujo.listos.includes(e.id) ? ' ✔' : ''}</td><td>${bolsaHTML(e)}</td><td><b>${e.puntos}</b></td><td>${P.vivos(e).length}</td></tr>`).join('')}</table>
       <div class="ctrls" style="margin-top:12px" id="bt"></div><div id="esp"></div>`;

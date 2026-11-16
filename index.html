@@ -6,7 +6,7 @@
 /* ACTUALIZACIONES SIN REINSTALAR (solo en la app): si el jugador bajó una versión más nueva del juego (botón ACTUALIZAR),
    sus archivos quedan guardados en el celular y se usan en vez de los que vinieron con la app (ver el cargador al final). */
 (function () {
-  var BASE = /*KP_V*/1794858923/*KP_V*/;
+  var BASE = /*KP_V*/1794859991/*KP_V*/;
   window.KP_BASE = BASE;
   try {
     var v = +(localStorage.getItem('kp_upd_v') || 0);
@@ -558,6 +558,16 @@
     .boardui .center .ctrls { margin-top: 6px !important; gap: 6px; } .boardui .center .ctrls button { padding: 3px 7px; font-size: 11px; }
   }
   .boardui td { white-space: nowrap; }
+  /* el teatro: el programa a la izquierda y la crónica a la derecha; el medio queda libre para ver el escenario */
+  .teatroui .center, .boardui.teatroui .center { left: 1.2%; right: 1.2%; top: 3%; bottom: 3%; grid-template-columns: minmax(0, 29%) 1fr minmax(0, 22%); align-items: end; gap: 0; }
+  .teatroui .center .panel { max-height: 100%; background: rgba(255,250,238,.88) !important; box-shadow: 0 6px 18px #0009; }
+  .teatroui .center .panel:nth-child(2) { grid-column: 3; max-height: 62%; }
+  .teatroui .center table { font-size: 12px; } .teatroui .center th, .teatroui .center td { padding: 2px 4px; }
+  .teatroui .center .ctrls { flex-wrap: wrap; }
+  @media (max-height: 520px), (max-width: 900px) {
+    .boardui.teatroui .center { grid-template-columns: minmax(0, 33%) 1fr; left: 1%; right: 1%; top: 2%; bottom: 2%; }
+    .teatroui .center h2 { font-size: 13px; } .teatroui .center table { font-size: 10px; }
+  }
   button, .stall, .quad .btns button { touch-action: manipulation; }
 .graf { display: flex; gap: 6px; align-items: center; margin-top: 4px; background: rgba(20,14,10,.75); padding: 6px 10px; border-radius: 10px; color: #d9c4a3; font: 12px var(--fB); }
 .graf button { font: inherit; color: #d9c4a3; background: #2c221a; border: 1px solid #4a3a2b; border-radius: 7px; padding: 5px 10px; cursor: pointer; }

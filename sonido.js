@@ -281,6 +281,7 @@ const S = {
   // HUD y tablero
   boton() { if (!listo()) return; const t = ctx.currentTime, d = salida(0.35, 0, 0); tono(d, t, 'triangle', 1500, 900, 0.03, 0.3); rafaga(d, t, 0.012, 'highpass', 3000, 1, 0.25); },
   ficha() { if (!listo()) return; const t = ctx.currentTime, d = salida(0.5, 0, 0.15); madera(d, t, 0.7); tono(d, t + 0.01, 'sine', 620, 540, 0.08, 0.15); },
+  telon() { if (!listo()) return; const t = ctx.currentTime, d = salida(0.4, 0, 0.25); rafaga(d, t, 0.75, 'lowpass', 900, 0.8, 0.35, 0.18, 350); rafaga(d, t + 0.05, 0.6, 'bandpass', 2200, 1.2, 0.12, 0.2, 1200); },   // el telón que corre
   salto() { if (!listo()) return; const t = ctx.currentTime, d = salida(0.25, 0, 0.1); rafaga(d, t, 0.18, 'bandpass', 600, 2, 0.2, 0.05, 1600); },
   moneda() { if (!listo()) return; const t = ctx.currentTime, d = salida(0.35, 0, 0.2); [2100, 3150, 4720].forEach((f, i) => tono(d, t + i * 0.002, 'sine', f, null, 0.25 - i * 0.05, 0.09)); tono(d, t + 0.07, 'sine', 2350, null, 0.2, 0.06); },
 };
