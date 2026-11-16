@@ -481,6 +481,7 @@ function salaOnline() {
   let nombre = (localStorageGet('coliseo-nombre') || '').slice(0, 14);
   sala.innerHTML = `<div class="ctrls"><label>Tu nombre <input id="nom" maxlength="14" value="${nombre}" placeholder="Emperador"></label></div>
     <div class="ctrls"><button class="prim" id="crear">Crear sala</button><span class="meta">o</span><input id="cod" maxlength="6" placeholder="CÓDIGO" style="width:7em;text-transform:uppercase"><button id="unir">Unirse</button><button id="atras">◂ Menú</button></div>
+    <div class="ctrls"><button id="solobots">🤖 Jugar solo con bots</button><span class="meta">sin internet, contra la máquina</span></div>
     ${localStorageGet('coliseo-sala') ? `<div class="ctrls"><button class="prim" id="volver">↩ Volver a la sala ${localStorageGet('coliseo-sala')}</button></div>` : ''}
     <div class="meta">Uno crea la sala y le pasa el código a los demás. ${Red.local ? '<b style="color:#e9a76b">(modo prueba local)</b>' : 'Se conecta por internet con PeerJS.'}</div><div class="meta" id="err" style="color:#ff8a7a"></div>
     <div class="lk" id="lk"></div>`;
@@ -495,6 +496,7 @@ function salaOnline() {
     Red.unirse(cod, nom()).then(() => { localStorageSet('coliseo-sala', cod); Red.enviar({ t: 'look', look: miLook() }); box.h.S.offX = 0; lobbyCliente(box, cod); }).catch((e) => { $('#err', sala).textContent = e.message || String(e); Red.cerrar(); });
   };
   $('#unir', sala).onclick = () => unirse(($('#cod', sala).value || '').trim().toUpperCase());
+  $('#solobots', sala).onclick = () => { box.h.S.offX = 0; lobbySolo(box, nom()); };
   if ($('#volver', sala)) $('#volver', sala).onclick = () => unirse(localStorageGet('coliseo-sala'));
 }
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -549,6 +551,32 @@ function lobbyHost(box, miNombre) {
       if (G.flujo.p === 'subasta' && HOST.sub && HOST.sub.carro) enviarSub();
     }
   });
+  pintar();
+}
+// la misma partida, pero sin sala: vos contra bots (con tu nombre y tu emperador)
+function lobbySolo(box, miNombre) {
+  const sala = $('#sala', box), tit = box.querySelector('.lay.pix');
+  if (tit) tit.textContent = 'Solo con bots';
+  let bots = 3;
+  const jugadores = () => [{ nombre: miNombre, humano: true, look: miLook() }, ...Array.from({ length: bots }, (_, i) => ({ nombre: P.NOMBRES_BOT[i], humano: false }))];
+  const labels = etiquetasSalon(box, () => jugadores().map((j) => j.nombre + (j.humano ? '' : ' 🤖')));
+  const pintar = () => {
+    const js = jugadores(), n = js.length;
+    box.h.S.setN(n, R.EQUIPOS.map((e) => e.color), undefined, js.map((j) => j.look || null)); labels(n);
+    sala.innerHTML = `<div class="lk-t">Solo con bots</div>
+      <div class="meta">Vos contra la máquina: de ${R.JUGADORES.min - 1} a ${R.JUGADORES.max - 1} bots.</div>
+      <div class="ctrls" style="margin-top:8px"><span>Bots</span><button id="bm">−</button><b>${bots}</b><button id="bp">+</button><span class="meta">${n} emperadores en total</span></div>
+      <div class="ctrls"><button class="prim" id="go">JUGAR ▸</button><button id="atras">◂ Volver</button></div>`;
+    $('#bm', sala).onclick = () => { if (n > R.JUGADORES.min) { bots--; pintar(); } };
+    $('#bp', sala).onclick = () => { if (n < R.JUGADORES.max) { bots++; pintar(); } };
+    $('#atras', sala).onclick = salaOnline;
+    $('#go', sala).onclick = () => {
+      Red.modo = 'solo'; YO = 0;
+      G = P.nueva(js.length, null, js.map((j) => ({ nombre: j.nombre, humano: j.humano })));
+      G.emperadores[0].look = js[0].look;
+      ir('tablero', {});
+    };
+  };
   pintar();
 }
 function empezarOnline(js) {
