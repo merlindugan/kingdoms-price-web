@@ -1353,5 +1353,5 @@ function montar(cont, nombre, opts = {}) {
   handle.resize = resize;
   return handle;
 }
-root.Mundo = { montar, ESC, REGIONES, regionLayout, MAPA_W, MAPA_D, V3: (x, y, z) => new T.Vector3(x, y, z), spriteEmp, gladSprite };
+root.Mundo = { montar, ESC, REGIONES, regionLayout, MAPA_W, MAPA_D, V3: (x, y, z) => new T.Vector3(x, y, z), spriteEmp, gladSprite, get renderer() { return renderer; } };
 })(window);

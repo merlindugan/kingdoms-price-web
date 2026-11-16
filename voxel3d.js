@@ -161,10 +161,35 @@ function crearParte(nombre, def) {
   p.grupo = new T.Group(); p.grupo.name = nombre;
   return p;
 }
-function soloHuesos(p) {
-  const deja = [V.hueso, V.medula, V.colmillo, V.tela, V.cinto, V.metal, V.cuero, V.toga, V.oro];
-  for (let q = 0; q < p.tipo.length; q++) if (p.tipo[q] && !deja.includes(p.tipo[q])) { p.tipo[q] = 0; p.orig[q] = 0; p.vivo[q] = 0; } else if (p.tipo[q] === V.medula) { p.tipo[q] = p.orig[q] = V.hueso; p.hp[q] = HP[V.hueso]; }
+function soloHuesos(p, cab) {
+  const deja = [V.hueso, V.medula, V.colmillo, V.tela, V.cinto, V.metal, V.cuero, V.toga, V.oro], ropa = [V.tela, V.cinto, V.metal, V.cuero, V.toga, V.oro];
+  const { nx, ny, nz, tipo } = p, n = tipo.length, carne = (t) => t && t !== V.pelo && !ropa.includes(t);
+  const lleno = (i, j, k) => i >= 0 && j >= 0 && k >= 0 && i < nx && j < ny && k < nz && carne(tipo[i + nx * (k + nz * j)]);
+  // con pocos cubitos (calidad baja) los huesos finitos desaparecen: la cabeza queda calavera maciza y los miembros flacos se quedan con el centro
+  let hue = 0, cuerpo = 0; for (let q = 0; q < n; q++) { if (carne(tipo[q])) cuerpo++; if (tipo[q] === V.hueso || tipo[q] === V.medula) hue++; }
+  let nucleo = null;
+  if (cab) nucleo = (q) => carne(tipo[q]);
+  else if (p.nombre === 'pecho' && hue < cuerpo * 0.3) {   // torso: costillas a rayas y la columna atrás
+    const sup = (j) => j > ny * 0.38 && j < ny * 0.92;
+    nucleo = (q) => { const t = tipo[q]; if (t === V.hueso || t === V.medula) return true; if (!carne(t)) return false; const j = (q / (nx * nz)) | 0, k = ((q / nx) | 0) % nz, i = q % nx; return (sup(j) && (j & 1) === 0) || (Math.abs(i - (nx - 1) / 2) < 1 && k < nz * 0.55); };
+  } else if (cuerpo && hue < Math.max(6, ny * 1.2)) {
+    const cen = new Uint8Array(n); let c = 0;
+    for (let j = 0; j < ny; j++) for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) { const q = i + nx * (k + nz * j); if (carne(tipo[q]) && lleno(i + 1, j, k) && lleno(i - 1, j, k) && lleno(i, j, k + 1) && lleno(i, j, k - 1)) { cen[q] = 1; c++; } }
+    nucleo = c >= Math.max(4, cuerpo * 0.1) ? (q) => cen[q] || tipo[q] === V.hueso || tipo[q] === V.medula : (q) => carne(tipo[q]);
+  }
+  for (let q = 0; q < n; q++) {
+    if (nucleo && nucleo(q)) { tipo[q] = p.orig[q] = V.hueso; p.hp[q] = HP[V.hueso]; p.vivo[q] = 1; continue; }
+    if (tipo[q] && !deja.includes(tipo[q])) { tipo[q] = 0; p.orig[q] = 0; p.vivo[q] = 0; } else if (tipo[q] === V.medula) { tipo[q] = p.orig[q] = V.hueso; p.hp[q] = HP[V.hueso]; }
+  }
   p.vivos0 = p.vivo.reduce((a, b) => a + b, 0); p.sombra.fill(1);
+  if (cab && p.caraInfo) {   // cuencas de los ojos, agujero de la nariz y dientes, pintados oscuros en el frente de la calavera
+    const ci = p.caraInfo, hx = ci.lado / 1.96, ojoY = ci.y + ci.dy / 2, bocaY = ci.y - ci.dy / 2, r = Math.max(0.75, 1.25 * Q);
+    const frente = (x, y) => { const i = Math.round(x * Q - p.g0[0]), j = Math.round(y * Q - p.g0[1]); if (i < 0 || j < 0 || i >= nx || j >= ny) return -1; for (let k = nz - 1; k >= 0; k--) if (tipo[i + nx * (k + nz * j)]) return i + nx * (k + nz * j); return -1; };
+    const pintar = (x, y, rr, f) => { for (let dx = -rr; dx <= rr; dx += 0.5 / Q) for (let dy = -rr; dy <= rr; dy += 0.5 / Q) if (dx * dx + dy * dy <= rr * rr) { const q = frente(x + dx, y + dy); if (q >= 0) p.sombra[q] = Math.min(p.sombra[q], f); } };
+    for (const s of [-1, 1]) pintar(s * hx * 0.42, ojoY, r / Q * 0.9, 0.16);
+    pintar(0, (ojoY + bocaY) / 2, 0.45 / Q, 0.3);
+    for (let x = -hx * 0.4; x <= hx * 0.4; x += 1 / Q) { const q = frente(x, bocaY); if (q >= 0) p.sombra[q] = (Math.round(x * Q) & 1) ? 0.35 : 0.8; }
+  }
 }
 const idx = (p, i, j, k) => i + p.nx * (k + p.nz * j);
 const dentro = (p, i, j, k) => i >= 0 && j >= 0 && k >= 0 && i < p.nx && j < p.ny && k < p.nz;
@@ -417,7 +442,7 @@ const _cacheAn = new Map(), _cacheCab = new Map();
 function anatomiaDe(R) {
   const key = [R.nombre, R.armadura || '', R.soloHueso ? 1 : 0, Q].join('|'), kc = key + '|' + R.peinado + '|' + R.barba + '|' + (R.corona ? 1 : 0) + '|' + (R.jefe || '') + '|' + (R.esbirro || '') + (R.ojosRojos ? 'r' : '');
   if (!_cacheAn.has(key)) _cacheAn.set(key, anatomia(R));
-  if (!_cacheCab.has(kc)) { const c = cabezaParte(R); if (R.soloHueso) soloHuesos(c); _cacheCab.set(kc, c); }
+  if (!_cacheCab.has(kc)) { const c = cabezaParte(R); if (R.soloHueso) soloHuesos(c, true); _cacheCab.set(kc, c); }
   const A = _cacheAn.get(key), partes = {};
   for (const [n, p0] of Object.entries(A.partes)) {
     const p = n === 'cabeza' ? _cacheCab.get(kc) : p0;
@@ -1521,7 +1546,7 @@ function instalar(M, escena, ef, material) {
   // ¿esta pieza está colgada de la escena y a la vista? (lo de afuera del gladiador —su grupo en la arena— no cuenta: eso prende o apaga la malla entera)
   const afuera = new Set();
   const enEscena = (o) => { for (let x = o; x; x = x.parent) { if (x === escena) return true; if (!x.visible && !afuera.has(x)) return false; } return false; };
-  const marcarAfuera = () => { afuera.clear(); for (let x = M.raiz && M.raiz.parent; x && x !== escena; x = x.parent) afuera.add(x); };
+  const marcarAfuera = () => { afuera.clear(); for (let x = M.raiz; x && x !== escena; x = x.parent) afuera.add(x); };   // la raíz también: esconder al gladiador entero apaga la malla, no la vacía
   const todoVisible = () => { for (const x of afuera) if (!x.visible) return false; return true; };
   function piezas() {
     const L = [];
@@ -1593,7 +1618,7 @@ function instalar(M, escena, ef, material) {
     if (mat.map !== M.tiraCaras) { mat.map = M.tiraCaras; mat.skinning = true; mat.vertexColors = true; mat.alphaTest = 0.5; mat.needsUpdate = true; }
     const skel = new T.Skeleton(L, L.map(() => new T.Matrix4()));
     if (!M.unida) { M.unida = new T.SkinnedMesh(geo, mat); M.unida.frustumCulled = false; escena.add(M.unida); }
-    else { M.unida.geometry.dispose(); M.unida.geometry = geo; }
+    else { M.unida.geometry.dispose(); M.unida.geometry = geo; if (M.unida.skeleton && M.unida.skeleton.dispose) M.unida.skeleton.dispose(); }
     M.unida.visible = todoVisible();
     M.unida.bind(skel, new T.Matrix4());
     if (M.cara) M.cara.userData.uOff = L.includes(M.cara) ? M.cara.userData.uOff : null;

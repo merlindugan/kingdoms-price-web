@@ -561,7 +561,7 @@ function initManoPost() {
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: `
       uniform sampler2D tC; uniform vec2 res; uniform float t, corte; varying vec2 vUv;
-      float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + t * 7.1) * 43758.5453); }
+      float rnd(vec2 p){ p = mod(p, 211.0); return fract(sin(dot(p, vec2(12.9898, 78.233)) + t * 7.1) * 43758.5453); }
       vec2 pez(vec2 uv, float k){ vec2 c = uv - 0.5; c.x *= res.x / res.y; float r2 = dot(c, c); c *= 1.0 + k * r2; c.x /= res.x / res.y; return c + 0.5; }
       void main(){
         vec2 uv = pez(vUv, 0.24);                       // ojo de pez
@@ -655,7 +655,9 @@ function camMano(dt) {
   // pulso de camarógrafo: va atrás del objetivo con retraso y tiembla un poco
   const T = mano.reloj, k = mano.primero ? 1 : Math.min(1, dt * kPos), kl = mano.primero ? 1 : Math.min(1, dt * kMira);
   mano.p = mano.p || new THREE.Vector3(); mano.l = mano.l || new THREE.Vector3();
+  if (![px, py, pz, lx, ly, lz, fov].every(Number.isFinite)) { mano.t = mano.dur; return; }   // toma rota: corta a otra
   mano.p.lerp(new THREE.Vector3(px, py, pz), k); mano.l.lerp(new THREE.Vector3(lx, ly, lz), kl); mano.primero = false;
+  if (![mano.p.x, mano.p.y, mano.p.z, mano.l.x, mano.l.y, mano.l.z].every(Number.isFinite)) { mano.p.set(px, py, pz); mano.l.set(lx, ly, lz); }   // que un NaN no deje la cámara en negro para siempre
   const tb = (a, b, c) => Math.sin(T * a) * 0.5 + Math.sin(T * b + 1.3) * 0.3 + Math.sin(T * c + 2.1) * 0.2;
   camera.position.set(mano.p.x + tb(1.3, 2.9, 7.1) * amp, mano.p.y + tb(1.7, 3.3, 8.3) * amp, mano.p.z + tb(1.1, 2.3, 6.7) * amp);
   // "poom": algunas tomas entran con un zoom de golpe que se acomoda
@@ -712,7 +714,7 @@ function initPost() {
 function dibujarEscena(dt) {
   // cuánto bokeh: lockeado en un gladiador o en cinemática = todo; con zoom = según qué tan cerca
   if (mano && manoPost) {   // cámara en mano: todo pasa por el filtro (sin barras de vida, es una toma de TV)
-    const u = manoPost.mat.uniforms; u.t.value = performance.now() / 1000; u.corte.value = mano.corte || 0;
+    const u = manoPost.mat.uniforms; u.t.value = (performance.now() / 1000) % 60; u.corte.value = mano.corte || 0;   // el tiempo acotado: con números grandes los celus se quedan sin precisión y la imagen se va a negro
     renderer.setRenderTarget(manoPost.rt); renderer.render(scene, camera);
     renderer.setRenderTarget(null); renderer.render(manoPost.esc, manoPost.cam);
     const rec = document.getElementById('recT'); if (rec) { const tt = mano.reloj || 0; rec.textContent = `${String(Math.floor(tt / 60)).padStart(2, '0')}:${String(Math.floor(tt % 60)).padStart(2, '0')}:${String(Math.floor((tt % 1) * 24)).padStart(2, '0')}`; }

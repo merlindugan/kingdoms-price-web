@@ -1,10 +1,10 @@
 {
-"v": 1794795157,
+"v": 1794797862,
 "archivos": {
-"index.html": "c42190f4125fc589",
+"index.html": "f64f8ffc216bd9be",
 "actualizar.js": "3eb7da0993401307",
 "android.js": "e83409cef2c58460",
-"arena.js": "8a2d4c1b66732a43",
+"arena.js": "45d6ee4162109c98",
 "carga.js": "f5b59b73132780fc",
 "escenas.js": "37ce9b8e7d8a2669",
 "historia_guion.js": "cedccca24aa92bec",
@@ -12,7 +12,7 @@
 "i18n_en.js": "0b836af99eccb45f",
 "logros.js": "3403117bfbb48c64",
 "motor.js": "e8f39c66f039ee91",
-"mundo.js": "4185f20a65227f94",
+"mundo.js": "c6b7b83e1b00e633",
 "musica.js": "dd32b40328fa21e5",
 "partida.js": "cc52337f765f53bf",
 "red.js": "3c1bad2d125c1a5c",
@@ -23,7 +23,7 @@
 "sonido.js": "88a7f32279a858f7",
 "sprites.js": "253d343176e22b16",
 "ui.js": "46733dd5c514301a",
-"voxel3d.js": "46dca76b94e954ec",
+"voxel3d.js": "96538f675823ee18",
 "vendor/peerjs.min.js": "7e60515a8225a0e6",
 "vendor/three.min.js": "7a7802bf4f08d5d7"
 }
