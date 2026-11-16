@@ -183,7 +183,8 @@
     b.className = 'lay bidioma'; b.setAttribute('data-noi18n', '');
     b.title = b.ariaLabel = { es: 'Idioma: Español', en: 'Language: English', pt: 'Idioma: Português' }[LANG];
     b.innerHTML = BANDERA[LANG];
-    b.onclick = () => { cambiar(IDIOMAS[(IDIOMAS.indexOf(LANG) + 1) % IDIOMAS.length]); if (typeof window.menu === 'function') window.menu(); };
+    const pintar = () => { b.innerHTML = BANDERA[LANG]; b.title = b.ariaLabel = { es: 'Idioma: Español', en: 'Language: English', pt: 'Idioma: Português' }[LANG]; };
+    b.onclick = () => { cambiar(IDIOMAS[(IDIOMAS.indexOf(LANG) + 1) % IDIOMAS.length]); pintar(); };   // la bandera cambia en el momento
     return b;
   }
   function cambiar(l) {

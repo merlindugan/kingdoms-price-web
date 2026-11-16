@@ -329,12 +329,12 @@ function menu() {
     <div class="lay menuC"><div style="text-align:center"><div class="big">KINGDOM'S PRICE</div>
       <div class="pix menuSub">Subastas, escuderías y sangre por el derecho a gobernar el reino</div></div>
     <div class="menuB">
-      <button class="mbtn" id="bHist">MODO HISTORIA</button>
-      <button class="mbtn" id="bAmigos">JUGAR CON AMIGOS</button>
-      <button class="mbtn" id="bSalir">SALIR DEL JUEGO</button>
+      <button class="mbtn piedra" id="bHist">MODO HISTORIA</button>
+      <button class="mbtn piedra" id="bAmigos">JUGAR CON AMIGOS</button>
+      <button class="mbtn piedra" id="bSalir">SALIR DEL JUEGO</button>
     </div></div>
     <button class="lay btrofeo" id="bLog" aria-label="Logros y estadísticas" title="Logros y estadísticas">🏆</button>
-    <button class="lay bajustes" id="bAj">⚙ AJUSTES</button>
+    <button class="lay bajustes piedra" id="bAj">⚙ AJUSTES</button>
     ${enApp() ? '' : `<a class="lay bapk" href="KingdomsPrice.apk" download="KingdomsPrice.apk"><img src="icono.png" alt=""><span>DESCARGAR APK<small>Para celulares Android</small></span></a>`}`);
   $('#bAj', box).onclick = () => ajustes();
   $('#bLog', box).onclick = () => window.Logros && Logros.panel();
@@ -342,6 +342,11 @@ function menu() {
   $('#bSalir', box).onclick = salirJuego;
   $('#bAmigos', box).onclick = salaOnline;
   $('#bHist', box).onclick = historiaMenu;
+  // al apoyar el dedo el botón se hunde (y vuelve al soltar)
+  box.querySelectorAll('.mbtn.piedra, .bajustes.piedra, .btrofeo').forEach((b) => {
+    b.addEventListener('pointerdown', () => b.classList.add('hundido'));
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => b.classList.remove('hundido'));
+  });
   if (window.I18N) box.appendChild(I18N.bandera());   // banderita: cambia el idioma
   if (window.Actualizar) { Actualizar.arranqueOk(); if (Actualizar.esApp()) box.appendChild(Actualizar.boton()); }   // en la app: botón ACTUALIZAR si hay versión nueva
 }
