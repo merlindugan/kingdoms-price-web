@@ -956,7 +956,7 @@ function cerrar(s) {
   const eqs = s.equipos.map((t) => {
     const m = t.miembros.map((i) => s.fighters[i]);
     return { id: t.id, muertes: m.reduce((a, f) => a + f.st.muertes, 0), sangre: m.filter((f) => f.estado === 'muerto').length,
-      danio: Math.max(...m.map((f) => f.st.hecho)), danioQuien: m.reduce((b, f) => (f.st.hecho > b.st.hecho ? f : b)).id, vivos: m.filter((f) => f.estado !== 'muerto').length,
+      danio: Math.max(0, ...m.map((f) => f.st.hecho)), danioQuien: m.length ? m.reduce((b, f) => (f.st.hecho > b.st.hecho ? f : b)).id : null,   /* un equipo sin luchadores no traba el cierre */ vivos: m.filter((f) => f.estado !== 'muerto').length,
       oro: t.id === s.ganador ? RC.oroGanador : RC.oroResto, puntos: t.id === s.ganador ? (s.cfg.ultima ? RC.puntosUltimaPelea : RC.puntosPelea) : 0, logros: [] };
   });
   // pelea de campeones: sin oro del pueblo; el ganador se lleva 10 oro por jugador, 3 puntos y 1 por campeón que mató;

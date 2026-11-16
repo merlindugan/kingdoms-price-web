@@ -1980,7 +1980,7 @@ function hBot(i, oro, dist, glads, opt = {}) {
   return e;
 }
 function hConBots(n, f) { G.emperadores = [yo()]; for (let i = 1; i <= n; i++) G.emperadores.push(f(i)); }
-const tieneEsclavos = () => P.vivos(yo()).some((g) => !(g.inmortal && (g.vida ?? 100) <= 0));
+const tieneEsclavos = () => P.vivos(yo()).some((g) => !g.internado && !(g.inmortal && (g.vida ?? 100) <= 0));   // los de la sala del curandero tampoco pueden pelear
 // los monstruos tirados (vida 0) no pueden pelear hasta que los cures
 function hMonstruosTirados() { const l = P.vivos(yo()).filter((g) => g.inmortal && (g.vida ?? 100) <= 0); for (const g of l) g.convocado = false; return l; }
 
@@ -1989,7 +1989,7 @@ function hEntrarNodo(n) {
   const H = HS(); H.nodo = n; H.oro0 = yo().bolsa.oro; H.esclavos0 = P.vivos(yo()).length;
   const pelea = n.tipo === 'cde' || n.tipo === 'pdc' || n.tipo === 'cdh' || n.tipo === 'mazmorra' || n.tipo === 'diablo';
   if (pelea) { const t = hMonstruosTirados(); if (t.length) G.log.push(`${t.map((g) => g.nombre).join(', ')} está tirado: no puede pelear.`); }
-  if (pelea && !tieneEsclavos()) { H.nodo = null; return alertar('No tenés esclavos que puedan pelear. Comprá en una subasta primero (o curá a tu monstruo).'); }
+  if (pelea && !tieneEsclavos()) { H.nodo = null; return alertar('No tenés esclavos que puedan pelear. Comprá en una subasta primero (o curá a tu monstruo, o esperá a que salgan del curandero).'); }
   if (pelea && !P.convocados(yo()).length) for (const g of P.vivos(yo()).filter((x) => !(x.inmortal && (x.vida ?? 100) <= 0)).slice(0, R.PELEA.maxPorEquipo)) g.convocado = true;
   if (n.tipo === 'subasta' || n.tipo === 'especial') return hSubasta(false, n);
   if (n.tipo === 'evento') return hEvento(n);

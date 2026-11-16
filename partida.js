@@ -345,7 +345,10 @@ function convocados(e) {
   const marc = vs.filter((g) => g.convocado);
   // los que nunca se tocaron (convocado undefined) completan los lugares; los desconvocados a mano (false) quedan afuera
   const resto = vs.filter((g) => g.convocado === undefined).sort((a, b) => fuerzaG(b) - fuerzaG(a));
-  return [...marc.slice(0, max), ...resto].slice(0, max);
+  const l = [...marc.slice(0, max), ...resto].slice(0, max);
+  if (l.length) return l;
+  // nadie quedó convocado (murieron los convocados y el resto estaba en reserva): pelean los mejores que estén en condiciones
+  return vs.filter((g) => !(g.inmortal && (g.vida ?? 100) <= 0)).sort((a, b) => fuerzaG(b) - fuerzaG(a)).slice(0, max);
 }
 // pelea de campeones: cada emperador manda a uno solo (el que eligió; los bots, al más fuerte)
 const mejorDe = (e) => [...vivos(e)].sort((a, b) => fuerzaG(b) - fuerzaG(a))[0] || null;
@@ -361,7 +364,7 @@ function armarCampeones(G, eleccion) {
 function armarPelea(G, soloIds) {
   const regalos = [];
   const emps = G.emperadores.filter((e) => !soloIds || soloIds.includes(e.id));
-  for (const e of emps) if (!vivos(e).length) {   // decidido: si no tiene gladiadores, recibe uno gratis
+  for (const e of emps) if (!convocados(e).length) {   // decidido: si no tiene gladiadores (que puedan pelear), recibe uno gratis
     const g = M.generarGladiador(G.rng, { tier: R.GRATIS.tier }); g.dueno = e.id; g.orden = 'cercano'; g.regalo = true;
     e.escuderia.push(g); regalos.push({ emp: e, g });
   }
